@@ -18,6 +18,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"os"
@@ -77,7 +78,6 @@ const usage = `{{NAME}} version: {{VERSION}} ({{GITSHA}})
 Usage: {{NAME}} [-n id] [-a addr] [options]
 
 Basic options:
-  -v               : display version
   -h               : display help, this screen
   -a addr          : bind to address  (default: 127.0.0.1:11001)
   -n id            : node ID  (default: 1)
@@ -290,8 +290,8 @@ func confInit(conf *Config) {
 	}
 	var backend string
 	var testNode string
-	var vers bool
-	flag.BoolVar(&vers, "v", false, "")
+	// var vers bool
+	// flag.BoolVar(&vers, "v", false, "")
 	flag.StringVar(&conf.Addr, "a", conf.Addr, "")
 	flag.StringVar(&conf.NodeID, "n", conf.NodeID, "")
 	flag.StringVar(&conf.DataDir, "d", conf.DataDir, "")
@@ -313,10 +313,10 @@ func confInit(conf *Config) {
 		conf.Flag.PreParse()
 	}
 	flag.Parse()
-	if vers {
+	/*if vers {
 		fmt.Printf("%s\n", versline(*conf))
 		os.Exit(0)
-	}
+	}*/
 	switch backend {
 	case "leveldb":
 		conf.Backend = LevelDB
@@ -447,6 +447,7 @@ func (s *jsonSnapshotType) Persist(wr io.Writer) error {
 	_, err := wr.Write(s.jsdata)
 	return err
 }
+
 func jsonSnapshot(data interface{}) (Snapshot, error) {
 	if data == nil {
 		return &jsonSnapshotType{}, nil
@@ -563,7 +564,7 @@ func dataDirInit(conf Config, log *redlog.Logger) (string, *restoreData) {
 		}
 		log.Printf("recovery successful")
 	} else {
-		if err := os.MkdirAll(dir, 0777); err != nil {
+		if err := os.MkdirAll(dir, fs.ModePerm); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -1119,7 +1120,7 @@ func appendUvarint(dst []byte, x uint64) []byte {
 // It's job is to apply the request to the Raft log and returns the result to
 // writeRequest.
 func runWriteApplier(conf Config, m *machine, ra *raftWrap) {
-	var maxReqs = 256 // TODO: make configurable
+	maxReqs := 256 // TODO: make configurable
 	for {
 		// Gather up as many requests (up to 256) into a single list.
 		var reqs []*writeRequestFuture
@@ -1549,9 +1550,11 @@ type listener struct {
 func (l *listener) Accept() (net.Conn, error) {
 	return <-l.next, nil
 }
+
 func (l *listener) Addr() net.Addr {
 	return l.addr
 }
+
 func (l *listener) Close() error {
 	return errors.New("disabled")
 }
@@ -1671,9 +1674,11 @@ func (s *fsmSnap) Release() {
 	s.snap.Done(path)
 }
 
-var errWrongNumArgsRaft = errors.New("wrong number of arguments, try RAFT HELP")
-var errWrongNumArgsCluster = errors.New("wrong number of arguments, " +
-	"try CLUSTER HELP")
+var (
+	errWrongNumArgsRaft    = errors.New("wrong number of arguments, try RAFT HELP")
+	errWrongNumArgsCluster = errors.New("wrong number of arguments, " +
+		"try CLUSTER HELP")
+)
 
 func errUnknownRaftCommand(args []string) error {
 	var cmd string
@@ -3099,7 +3104,6 @@ func redisServiceExecArgs(s Service, client *redisClient, conn redcon.Conn,
 }
 
 func redisServiceHandler(s Service, ln net.Listener) {
-
 	s.Log().Fatal(redcon.Serve(ln,
 		// handle commands
 		func(conn redcon.Conn, cmd redcon.Command) {
