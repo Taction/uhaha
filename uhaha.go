@@ -18,6 +18,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"os"
@@ -563,7 +564,7 @@ func dataDirInit(conf Config, log *redlog.Logger) (string, *restoreData) {
 		}
 		log.Printf("recovery successful")
 	} else {
-		if err := os.MkdirAll(dir, 0o777); err != nil {
+		if err := os.MkdirAll(dir, fs.ModePerm); err != nil {
 			log.Fatal(err)
 		}
 	}
