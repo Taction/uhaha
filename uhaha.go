@@ -39,7 +39,6 @@ import (
 	"github.com/tidwall/redlog/v2"
 	"github.com/tidwall/rtime"
 
-	argshandler "github.com/gitsrc/IceFireDB/argsHandler"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 	raftleveldb "github.com/tidwall/raft-leveldb"
 )
@@ -50,7 +49,7 @@ import (
 // transferred.
 func Main(conf Config) {
 	confInit(&conf)
-	conf.AddService(redisService())
+	conf.AddService(redisService(&conf))
 
 	hclogger, log := logInit(conf)
 	tm := remoteTimeInit(conf, log)
@@ -192,6 +191,9 @@ type Config struct {
 	// ConnClosed is an optional callback function that fires when a network
 	// connection has been closed on this machine.
 	ConnClosed func(context interface{}, addr string)
+
+	// CmdRewrite is an optional redis instruction rewrite function
+	CmdRewrite func(args [][]string, v ...interface{})
 
 	LocalTime   bool          // default false
 	TickDelay   time.Duration // default 200ms
@@ -2988,8 +2990,8 @@ func (r *writeRequestFuture) Recv() (interface{}, time.Duration, error) {
 }
 
 // redisService provides a service that is compatible with the Redis protocol.
-func redisService() (func(io.Reader) bool, func(Service, net.Listener)) {
-	return nil, redisServiceHandler
+func redisService(conf *Config) (func(io.Reader) bool, func(Service, net.Listener)) {
+	return nil, conf.redisServiceHandler
 }
 
 type redisClient struct {
@@ -3104,18 +3106,21 @@ func redisServiceExecArgs(s Service, client *redisClient, conn redcon.Conn,
 	}
 }
 
-func redisServiceHandler(s Service, ln net.Listener) {
+func (conf *Config) redisServiceHandler(s Service, ln net.Listener) {
 	s.Log().Fatal(redcon.Serve(ln,
 		// handle commands
 		func(conn redcon.Conn, cmd redcon.Command) {
 			client := conn.Context().(*redisClient)
-			now := time.Now()
 			var args [][]string
 			args = append(args, redisCommandToArgs(cmd))
 			for _, cmd := range conn.ReadPipeline() {
 				args = append(args, redisCommandToArgs(cmd))
 			}
-			argshandler.RedisCmdRewrite(args, now)
+			if conf.CmdRewrite != nil {
+				now := time.Now()
+				conf.CmdRewrite(args, now)
+			}
+
 			redisServiceExecArgs(s, client, conn, args)
 		},
 		// handle opened connection
