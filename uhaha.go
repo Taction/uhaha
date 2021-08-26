@@ -192,8 +192,8 @@ type Config struct {
 	// connection has been closed on this machine.
 	ConnClosed func(context interface{}, addr string)
 
-	// CmdRewrite is an optional redis instruction rewrite function
-	CmdRewrite func(args [][]string, v ...interface{})
+	// CmdRewriteFunc is an optional redis instruction rewrite function
+	CmdRewriteFunc func(args [][]string)
 
 	LocalTime   bool          // default false
 	TickDelay   time.Duration // default 200ms
@@ -3116,9 +3116,8 @@ func (conf *Config) redisServiceHandler(s Service, ln net.Listener) {
 			for _, cmd := range conn.ReadPipeline() {
 				args = append(args, redisCommandToArgs(cmd))
 			}
-			if conf.CmdRewrite != nil {
-				now := time.Now()
-				conf.CmdRewrite(args, now)
+			if conf.CmdRewriteFunc != nil {
+				conf.CmdRewriteFunc(args)
 			}
 
 			redisServiceExecArgs(s, client, conn, args)
