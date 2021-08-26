@@ -39,6 +39,7 @@ import (
 	"github.com/tidwall/redlog/v2"
 	"github.com/tidwall/rtime"
 
+	argshandler "github.com/gitsrc/IceFireDB/argsHandler"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 	raftleveldb "github.com/tidwall/raft-leveldb"
 )
@@ -3108,11 +3109,13 @@ func redisServiceHandler(s Service, ln net.Listener) {
 		// handle commands
 		func(conn redcon.Conn, cmd redcon.Command) {
 			client := conn.Context().(*redisClient)
+			now := time.Now()
 			var args [][]string
 			args = append(args, redisCommandToArgs(cmd))
 			for _, cmd := range conn.ReadPipeline() {
 				args = append(args, redisCommandToArgs(cmd))
 			}
+			argshandler.RedisCmdRewrite(args, now)
 			redisServiceExecArgs(s, client, conn, args)
 		},
 		// handle opened connection
