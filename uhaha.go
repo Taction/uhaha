@@ -49,7 +49,7 @@ import (
 // transferred.
 func Main(conf Config) {
 	confInit(&conf)
-	conf.AddService(redisService(&conf))
+	conf.AddService(redisService())
 
 	hclogger, log := logInit(conf)
 	tm := remoteTimeInit(conf, log)
@@ -3000,8 +3000,8 @@ func (r *writeRequestFuture) Recv() (interface{}, time.Duration, error) {
 }
 
 // redisService provides a service that is compatible with the Redis protocol.
-func redisService(conf *Config) (func(io.Reader) bool, func(Service, net.Listener)) {
-	return nil, conf.redisServiceHandler
+func redisService() (func(io.Reader) bool, func(Service, net.Listener)) {
+	return nil, redisServiceHandler
 }
 
 type redisClient struct {
@@ -3116,7 +3116,7 @@ func redisServiceExecArgs(s Service, client *redisClient, conn redcon.Conn,
 	}
 }
 
-func (conf *Config) redisServiceHandler(s Service, ln net.Listener) {
+func redisServiceHandler(s Service, ln net.Listener) {
 	s.Log().Fatal(redcon.Serve(ln,
 		// handle commands
 		func(conn redcon.Conn, cmd redcon.Command) {
