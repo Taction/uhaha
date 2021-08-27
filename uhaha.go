@@ -675,6 +675,7 @@ func machineInit(conf Config, dir string, rdata *restoreData,
 	m.jsonSnaps = conf.jsonSnaps
 	m.jsonType = conf.jsonType
 	m.tick = conf.Tick
+	m.cmdRewrite = conf.CmdRewriteFunc
 	m.commands = map[string]command{
 		"tick":    {'w', cmdTICK},
 		"barrier": {'w', cmdBARRIER},
@@ -1773,6 +1774,7 @@ type machine struct {
 	log        Logger             // shared logger
 	openReads  bool               // open reads on by default
 	tickDelay  time.Duration      // ticker delay
+	cmdRewrite func(args [][]string)
 
 	mu           sync.RWMutex // protect all things in group
 	firstIndex   uint64       // first applied index
@@ -2755,6 +2757,8 @@ type Service interface {
 	Opened(addr string) (context interface{}, accept bool)
 	// Closed
 	Closed(context interface{}, addr string)
+	// CmdRewrite
+	CmdRewrite(args [][]string)
 }
 
 type serviceEntry struct {
@@ -2794,6 +2798,12 @@ func (s *service) Auth(auth string) error {
 		return ErrUnauthorized
 	}
 	return nil
+}
+
+func (s *service) CmdRewrite(args [][]string) {
+	if s.m.cmdRewrite != nil {
+		s.m.cmdRewrite(args)
+	}
 }
 
 // The Send function sends command args to the service and return a future
@@ -3116,10 +3126,7 @@ func (conf *Config) redisServiceHandler(s Service, ln net.Listener) {
 			for _, cmd := range conn.ReadPipeline() {
 				args = append(args, redisCommandToArgs(cmd))
 			}
-			if conf.CmdRewriteFunc != nil {
-				conf.CmdRewriteFunc(args)
-			}
-
+			s.CmdRewrite(args)
 			redisServiceExecArgs(s, client, conn, args)
 		},
 		// handle opened connection
