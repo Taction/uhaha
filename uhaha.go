@@ -195,6 +195,11 @@ type Config struct {
 	// CmdRewriteFunc is an optional redis instruction rewrite function
 	CmdRewriteFunc func(args [][]string)
 
+	// NotifyCh is used to provide a channel that will be notified of raft leadership
+	// changes. Raft will block writing to this channel, so it should either be
+	// buffered or aggressively consumed.
+	NotifyCh chan<- bool
+
 	LocalTime   bool          // default false
 	TickDelay   time.Duration // default 200ms
 	BackupPath  string        // default ""
@@ -776,6 +781,9 @@ func raftInit(conf Config, hclogger hclog.Logger, fsm raft.FSM,
 	rconf := raft.DefaultConfig()
 	rconf.Logger = hclogger
 	rconf.LocalID = raft.ServerID(conf.NodeID)
+	if conf.NotifyCh != nil {
+		rconf.NotifyCh = conf.NotifyCh
+	}
 	ra, err := raft.NewRaft(rconf, fsm, logStore, stableStore, snaps, trans)
 	if err != nil {
 		log.Fatal(err)
